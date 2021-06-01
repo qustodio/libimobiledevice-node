@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include "common/common_binding.h"
+#include "common/memory_handle.h"
 
 
 struct idevice_backup2_backup_options {
@@ -31,7 +32,7 @@ struct idevice_backup2_restore_options {
 struct idevice_backup2_encryption_options {
     bool enable;
     char *password;
-} const default_idevice_backup2_encryption_options = { .enable = NULL, .password = NULL };
+} const default_idevice_backup2_encryption_options = { .enable = false, .password = NULL };
 
 struct idevice_backup2_changepw_options {
     char *newpw;

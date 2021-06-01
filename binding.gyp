@@ -2,7 +2,7 @@
     "targets": [
         {
           "target_name": "imobiledevice",
-          "sources": [ 
+          "sources": [
             "src/binding.cc",
             "src/idevice/id.h",
             "src/idevice/id.c",
@@ -20,7 +20,9 @@
             "src/common/userpref.h",
             "src/common/userpref.c",
             "src/src/msc_config.h",
-            "src/src/msc_compat.h"
+            "src/src/msc_compat.h",
+            "src/common/memory_handle.h",
+            "src/common/memory_handle.c"
         ],
         "include_dirs": [
           "src"

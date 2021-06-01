@@ -1437,14 +1437,7 @@ void idevice_backup2(struct idevice_backup2_options options, FILE *stream_err, F
     if (options.network) use_network = 1;
     if (options.command) command = options.command;
     if (options.interactive) interactive_mode = 1;
-    if (options.backup_directory != NULL) {
-        if(backup_directory) {
-            free(backup_directory);
-            backup_directory = NULL;
-        }
-        backup_directory = strdup(options.backup_directory);
-    };
-    printf("options.backupdirectory: %s\n", options.backup_directory);
+    if (options.backup_directory) backup_directory = strdup(options.backup_directory);
 
     if (!strcmp(command, "backup")) {
         cmd = CMD_BACKUP;
@@ -1458,7 +1451,7 @@ void idevice_backup2(struct idevice_backup2_options options, FILE *stream_err, F
         if (options.restore.remove) cmd_flags |= CMD_FLAG_RESTORE_REMOVE_ITEMS;
         if (options.restore.skip_apps) cmd_flags |= CMD_FLAG_RESTORE_SKIP_APPS;
         if (options.restore.password != NULL) {
-            if (backup_password) free(backup_password);
+            c_safty_free(backup_password);
             backup_password = strdup(options.restore.password);
         }
     } else if (!strcmp(command, "info")) {
@@ -1477,14 +1470,8 @@ void idevice_backup2(struct idevice_backup2_options options, FILE *stream_err, F
             cmd_flags |= CMD_FLAG_ENCRYPTION_DISABLE;
         }
         
-        if (newpw) {
-            free(newpw);
-            newpw = NULL;
-        }
-        if (backup_password) {
-            free(backup_password);
-            backup_password = NULL;
-        }
+        c_safty_free(newpw);
+        c_safty_free(backup_password);
         
         if (options.encryption.password != NULL) {
             if (cmd_flags & CMD_FLAG_ENCRYPTION_ENABLE) {
@@ -1496,14 +1483,8 @@ void idevice_backup2(struct idevice_backup2_options options, FILE *stream_err, F
     } else if (!strcmp(command, "changepw")) {
         cmd = CMD_CHANGEPW;
         cmd_flags |= CMD_FLAG_ENCRYPTION_CHANGEPW;
-        if (newpw) {
-            free(newpw);
-            newpw = NULL;
-        }
-        if (backup_password) {
-            free(backup_password);
-            backup_password = NULL;
-        }
+        c_safty_free(newpw);
+        c_safty_free(backup_password);
         
         if(options.changepw.backup_password != NULL && options.changepw.newpw != NULL) {
             backup_password = strdup(options.changepw.backup_password);
@@ -1582,20 +1563,20 @@ void idevice_backup2(struct idevice_backup2_options options, FILE *stream_err, F
         if (cmd == CMD_RESTORE || cmd == CMD_UNBACK) {
             if (stat(info_path, &st) != 0) {
                 idevice_free(device);
-                free(info_path);
+                c_safty_free(info_path);
                 fprintf(stream_err, "ERROR: Backup directory \"%s\" is invalid. No Info.plist found for UDID %s.\n", backup_directory, source_udid);
                 return;
             }
             char* manifest_path = string_build_path(backup_directory, source_udid, "Manifest.plist", NULL);
             if (stat(manifest_path, &st) != 0) {
-                free(info_path);
+                c_safty_free(info_path);
             }
             plist_t manifest_plist = NULL;
             plist_read_from_filename(&manifest_plist, manifest_path);
             if (!manifest_plist) {
                 idevice_free(device);
-                free(info_path);
-                free(manifest_path);
+                c_safty_free(info_path);
+                c_safty_free(manifest_path);
                 fprintf(stream_err, "ERROR: Backup directory \"%s\" is invalid. No Manifest.plist found for UDID %s.\n", backup_directory, source_udid);
                 return;
             }
@@ -1604,7 +1585,7 @@ void idevice_backup2(struct idevice_backup2_options options, FILE *stream_err, F
                 plist_get_bool_val(node_tmp, &is_encrypted);
             }
             plist_free(manifest_plist);
-            free(manifest_path);
+            c_safty_free(manifest_path);
         }
         PRINT_VERBOSE(1, stream_out, "Backup directory is \"%s\"\n", backup_directory);
         PRINT_VERBOSE_DEBUG(1, "Backup directory is \"%s\"\n", backup_directory);
@@ -1619,7 +1600,7 @@ void idevice_backup2(struct idevice_backup2_options options, FILE *stream_err, F
             }
             if (!backup_password || (strlen(backup_password) == 0)) {
                 if (backup_password) {
-                    free(backup_password);
+                    c_safty_free(backup_password);
                 }
                 idevice_free(device);
                 if (cmd == CMD_RESTORE) {
@@ -1787,6 +1768,16 @@ void idevice_backup2(struct idevice_backup2_options options, FILE *stream_err, F
                 lockfile = 0;
                 cmd = CMD_LEAVE;
             }
+        }
+        uint8_t willEncrypt = 0;
+        node_tmp = NULL;
+        lockdownd_get_value(lockdown, "com.apple.mobile.backup", "WillEncrypt", &node_tmp);
+        if (node_tmp) {
+            if (plist_get_node_type(node_tmp) == PLIST_BOOLEAN) {
+                plist_get_bool_val(node_tmp, &willEncrypt);
+            }
+            plist_free(node_tmp);
+            node_tmp = NULL;
         }
         
     checkpoint:
@@ -1998,10 +1989,7 @@ void idevice_backup2(struct idevice_backup2_options options, FILE *stream_err, F
                     } else {
                         fprintf(stream_err, "ERROR: Backup encryption is already enabled. Aborting.\n");
                         cmd = CMD_LEAVE;
-                        if (newpw) {
-                            free(newpw);
-                            newpw = NULL;
-                        }
+                        c_safty_free(newpw);
                     }
                 } else if (cmd_flags & CMD_FLAG_ENCRYPTION_DISABLE) {
                     if (willEncrypt) {
@@ -2011,10 +1999,7 @@ void idevice_backup2(struct idevice_backup2_options options, FILE *stream_err, F
                     } else {
                         fprintf(stream_err, "ERROR: Backup encryption is not enabled. Aborting.\n");
                         cmd = CMD_LEAVE;
-                        if (backup_password) {
-                            free(backup_password);
-                            backup_password = NULL;
-                        }
+                        c_safty_free(backup_password);
                     }
                 } else if (cmd_flags & CMD_FLAG_ENCRYPTION_CHANGEPW) {
                     if (willEncrypt) {
@@ -2025,14 +2010,8 @@ void idevice_backup2(struct idevice_backup2_options options, FILE *stream_err, F
                     } else {
                         fprintf(stream_err, "ERROR: Backup encryption is not enabled so can't change password. Aborting.\n");
                         cmd = CMD_LEAVE;
-                        if (newpw) {
-                            free(newpw);
-                            newpw = NULL;
-                        }
-                        if (backup_password) {
-                            free(backup_password);
-                            backup_password = NULL;
-                        }
+                        c_safty_free(newpw);
+                        c_safty_free(backup_password);
                     }
                 }
                 if (newpw) {
@@ -2071,8 +2050,7 @@ void idevice_backup2(struct idevice_backup2_options options, FILE *stream_err, F
             
             /* process series of DLMessage* operations */
             do {
-                free(dlmsg);
-                dlmsg = NULL;
+                c_safty_free(dlmsg);
                 mobilebackup2_receive_message(mobilebackup2, &message, &dlmsg);
                 if (!message || !dlmsg) {
                     PRINT_VERBOSE(1, stream_out, "Device is not ready yet. Going to try again in 2 seconds...\n");
@@ -2148,11 +2126,10 @@ void idevice_backup2(struct idevice_backup2_options options, FILE *stream_err, F
                                         errdesc = strerror(errno);
                                         break;
                                     }
-                                    free(oldpath);
-                                    free(newpath);
+                                    c_safty_free(oldpath);
+                                    c_safty_free(newpath);
                                 }
-                                free(key);
-                                key = NULL;
+                                c_safty_free(key);
                             }
                         } while (val);
                         free(iter);
@@ -2203,7 +2180,7 @@ void idevice_backup2(struct idevice_backup2_options options, FILE *stream_err, F
                                     errcode = errno_to_device_error(res);
                                     errdesc = strerror(res);
                                 }
-                                free(newpath);
+                                c_safty_free(newpath);
                             }
                         }
                     }
@@ -2237,11 +2214,11 @@ void idevice_backup2(struct idevice_backup2_options options, FILE *stream_err, F
                                 mb2_copy_file_by_path(oldpath, newpath);
                             }
                             
-                            free(newpath);
-                            free(oldpath);
+                            c_safty_free(newpath);
+                            c_safty_free(oldpath);
                         }
-                        free(src);
-                        free(dst);
+                        c_safty_free(src);
+                        c_safty_free(dst);
                     }
                     plist_t empty_dict = plist_new_dict();
                     err = mobilebackup2_send_status_response(mobilebackup2, errcode, errdesc, empty_dict);
@@ -2282,9 +2259,7 @@ void idevice_backup2(struct idevice_backup2_options options, FILE *stream_err, F
                             fprintf(stream_err, "ErrorCode %d: (Unknown)\n", error_code);
                         }
                     }
-                    if (str) {
-                        free(str);
-                    }
+                    c_safty_free(str);
                     nn = plist_dict_get_item(node_tmp, "Content");
                     if (nn && (plist_get_node_type(nn) == PLIST_STRING)) {
                         str = NULL;
@@ -2292,7 +2267,7 @@ void idevice_backup2(struct idevice_backup2_options options, FILE *stream_err, F
                         PRINT_VERBOSE(1, stream_out, "Content:\n");
                         PRINT_VERBOSE_DEBUG(1, "Content:\n");
                         printf("%s", str);
-                        free(str);
+                        c_safty_free(str);
                     }
                     break;
                 }
@@ -2328,7 +2303,7 @@ void idevice_backup2(struct idevice_backup2_options options, FILE *stream_err, F
             } while (1);
             
             plist_free(message);
-            free(dlmsg);
+            c_safty_free(dlmsg);
             
             /* report operation status to user */
             switch (cmd) {
@@ -2476,25 +2451,9 @@ void idevice_backup2(struct idevice_backup2_options options, FILE *stream_err, F
     
     idevice_free(device);
     device = NULL;
-    
-    if (backup_password) {
-        free(backup_password);
-        backup_password = NULL;
-    }
-    
-    if (udid) {
-        free(udid);
-        udid = NULL;
-    }
 
-    if (source_udid) {
-        free(source_udid);
-        source_udid = NULL;
-    }
-
-    if(backup_directory) {
-        free(backup_directory);
-        backup_directory = NULL;
-    }
+    c_safty_free(backup_password);
+    c_safty_free(udid);
+    c_safty_free(source_udid);
 }
 

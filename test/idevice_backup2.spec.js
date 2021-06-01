@@ -3,11 +3,12 @@ const { backup2 } = require('../index');
 const { expect } = require("chai");
 const cp = require('child_process');
 const { match } = require("sinon");
-const { getDefaultOptions, BACKUP2_COMMANDS } = require("../lib/idevice_backup2");
+const { getDefaultOptions, BACKUP2_COMMANDS, Backup2Error } = require("../lib/idevice_backup2");
 
 describe('idevice_backup2 tests', () => {
     const path = 'Users/homedir'
-    const getStubChildOn = (error, data) => (text, callback) => callback({error: error, data: data});
+    const defaultProgress = (progressNumber) =>  progressNumber;
+    const getStubChildOn = (error, data, progress) => (text, callback) => callback({error: error, data: data, progress: progress});
     const defaultForkStub = (spies) => {
         return {
             send: spies.child.send.returns((options) => {}),
@@ -15,6 +16,13 @@ describe('idevice_backup2 tests', () => {
             disconnect: spies.child.disconnect.returns(() => {})
         };
     };
+    const stubFork = (spies, error, success, progress) => {
+        return {
+            send: spies.child.send.returns((options) => {}),
+            on: getStubChildOn(error, success, progress),
+            disconnect: spies.child.disconnect.returns(() => {})
+        };
+    }
     const progress = () => {};
     let spySend;
     let stubs = {};
@@ -84,5 +92,38 @@ describe('idevice_backup2 tests', () => {
         spies.child.fork.returns(defaultForkStub(spies));
         backup2.cloud(options, () => { expect(spySend.calledWith(match(expectedOptions))).to.equal(true);}, progress);
     });
-    
+
+    it('id.backup2.backup should return success if there is multiple messages', () => {
+        let options = { backup_directory: path };
+        let message = 'Backup Started\nBackup successfully done\nSUCCESS';
+        spies.child.fork.returns(stubFork(spies, '', message));
+        let progress = (progress) => {};
+        backup2.backup(options, (error, result) => {
+            let expectedResult = { success: true, message: message };
+            expect(result).to.eql(expectedResult);
+            expect(error).to.be.null;
+        }, progress);
+    });
+
+    it('id.backup2.backup should return a float', () => {
+        let options = { backup_directory: path };
+        let message = 'SUCCESS';
+        spies.child.fork.returns(stubFork(spies, '', message, defaultProgress('10.12')));
+        backup2.backup(options, (error, result) => {
+            expect(result).to.eql({ success: true, message: message});
+            expect(error).to.be.null;
+        }, (progress) => {
+            expect(progress).to.eql(10.12);
+        });
+    });
+
+    it('id.backup2.backup should fail with Backup2Error', () => {
+        let options = { backup_directory: path };
+        let message = 'SUCCESS';
+        spies.child.fork.returns(stubFork(spies, 'ERROR: BACKUP', null, null));
+        backup2.backup(options, (error, result) => {
+            expect(result).to.be.null;
+            expect(error).to.be.instanceOf(Backup2Error);
+        }, () => {});
+    });
 });
